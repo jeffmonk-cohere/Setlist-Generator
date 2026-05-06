@@ -1,12 +1,3 @@
-const NOTES_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const FLAT_TO_SHARP = {
-  Db: "C#",
-  Eb: "D#",
-  Gb: "F#",
-  Ab: "G#",
-  Bb: "A#",
-};
-
 const demoSongTitles = new Set(["amazing grace", "stand by me", "house set opener"]);
 
 const metadataRows = `Big Empty|Alternative rock|Dark
@@ -99,37 +90,25 @@ Starting Over|Country|Warm
 Troubadour|Country|Warm
 Wave on Wave|Country|Warm`;
 
-const metadataSongs = metadataRows.split("\n").map((row) => {
+const defaultSongs = metadataRows.split("\n").map((row) => {
   const [title, genre, mood] = row.split("|");
-  return {
+  return normalizeSong({
     id: crypto.randomUUID(),
     title,
-    artist: "",
-    key: "G",
-    capo: 0,
-    transpose: 0,
-    fontSize: 22,
     genre,
     mood,
     energy: energyFromMood(mood),
     feel: feelFromMood(mood),
     minutes: 4,
     tags: tagsForSong(genre, mood),
-    lyrics: `[Notes]\nAdd chords and lyrics for ${title} here.\n\n[Metadata]\nGenre: ${genre}\nMood: ${mood}`,
-  };
+  });
 });
-
-const defaultSongs = metadataSongs;
 
 const state = {
   songs: [],
   setlist: [],
   activeId: null,
   query: "",
-  editing: true,
-  scrolling: false,
-  scrollSpeed: 0,
-  scrollTimer: null,
   crowd: {
     venue: "mixed",
     singalong: 7,
@@ -147,6 +126,7 @@ const els = {
   songCount: document.querySelector("#songCount"),
   setCount: document.querySelector("#setCount"),
   setMinutes: document.querySelector("#setMinutes"),
+  selectedHint: document.querySelector("#selectedHint"),
   venueSelect: document.querySelector("#venueSelect"),
   singalongInput: document.querySelector("#singalongInput"),
   danceInput: document.querySelector("#danceInput"),
@@ -157,80 +137,62 @@ const els = {
   generatorNote: document.querySelector("#generatorNote"),
   searchInput: document.querySelector("#searchInput"),
   titleInput: document.querySelector("#titleInput"),
-  artistInput: document.querySelector("#artistInput"),
-  lyricsInput: document.querySelector("#lyricsInput"),
-  keySelect: document.querySelector("#keySelect"),
-  displayKey: document.querySelector("#displayKey"),
-  capoInput: document.querySelector("#capoInput"),
+  genreInput: document.querySelector("#genreInput"),
+  moodInput: document.querySelector("#moodInput"),
   energyInput: document.querySelector("#energyInput"),
   feelSelect: document.querySelector("#feelSelect"),
+  minutesInput: document.querySelector("#minutesInput"),
   fitInput: document.querySelector("#fitInput"),
-  fontSizeInput: document.querySelector("#fontSizeInput"),
-  scrollSpeedInput: document.querySelector("#scrollSpeedInput"),
-  transposeValue: document.querySelector("#transposeValue"),
-  chartTitle: document.querySelector("#chartTitle"),
-  chartArtist: document.querySelector("#chartArtist"),
-  chartKeyBadge: document.querySelector("#chartKeyBadge"),
-  chartCapoBadge: document.querySelector("#chartCapoBadge"),
-  chartBody: document.querySelector("#chartBody"),
-  chartPane: document.querySelector("#chartPane"),
-  editorPane: document.querySelector("#editorPane"),
-  editToggle: document.querySelector("#editToggle"),
-  saveButton: document.querySelector("#saveButton"),
-  exportButton: document.querySelector("#exportButton"),
-  importInput: document.querySelector("#importInput"),
   addToSetButton: document.querySelector("#addToSetButton"),
+  copySetButton: document.querySelector("#copySetButton"),
+  exportSetButton: document.querySelector("#exportSetButton"),
   clearSetButton: document.querySelector("#clearSetButton"),
-  transposeDown: document.querySelector("#transposeDown"),
-  transposeUp: document.querySelector("#transposeUp"),
-  autoScrollButton: document.querySelector("#autoScrollButton"),
-  stageModeButton: document.querySelector("#stageModeButton"),
   newSongButton: document.querySelector("#newSongButton"),
   toast: document.querySelector("#toast"),
 };
 
 function load() {
-  const saved = localStorage.getItem("stage-chords-data");
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    const savedSongs = (parsed.songs || []).filter((song) => !demoSongTitles.has((song.title || "").toLowerCase()));
-    state.songs = mergeSongs(savedSongs, defaultSongs).map(normalizeSong);
-    state.setlist = (parsed.setlist || []).filter((id) => state.songs.some((song) => song.id === id));
-    state.activeId = parsed.activeId || state.songs[0]?.id;
-    if (!state.songs.some((song) => song.id === state.activeId)) state.activeId = state.songs[0]?.id;
-    state.crowd = { ...state.crowd, ...(parsed.crowd || {}) };
-    if (state.songs.length !== savedSongs.length) persist();
-  } else {
-    state.songs = defaultSongs.map(normalizeSong);
+  const saved = localStorage.getItem("setlist-generator-data") || localStorage.getItem("stage-chords-data");
+  if (!saved) {
+    state.songs = defaultSongs;
     state.setlist = state.songs.slice(0, 8).map((song) => song.id);
     state.activeId = state.songs[0].id;
     persist();
+    return;
   }
+
+  const parsed = JSON.parse(saved);
+  const savedSongs = (parsed.songs || [])
+    .filter((song) => !demoSongTitles.has((song.title || "").toLowerCase()))
+    .map(normalizeSong);
+
+  state.songs = mergeSongs(savedSongs, defaultSongs);
+  state.setlist = (parsed.setlist || []).filter((id) => state.songs.some((song) => song.id === id));
+  state.activeId = state.songs.some((song) => song.id === parsed.activeId) ? parsed.activeId : state.songs[0]?.id;
+  state.crowd = { ...state.crowd, ...(parsed.crowd || {}) };
+  persist();
 }
 
 function persist() {
   localStorage.setItem(
-    "stage-chords-data",
+    "setlist-generator-data",
     JSON.stringify({ songs: state.songs, setlist: state.setlist, activeId: state.activeId, crowd: state.crowd })
   );
 }
 
 function normalizeSong(song) {
+  const genre = song.genre || "";
+  const mood = song.mood || "";
+  const tags = Array.isArray(song.tags) ? song.tags : tagsFromText(song.tags || "");
   return {
     id: song.id || crypto.randomUUID(),
     title: song.title || "Untitled",
-    artist: song.artist || "",
-    key: song.key || "C",
-    capo: Number(song.capo || 0),
-    transpose: Number(song.transpose || 0),
-    fontSize: Number(song.fontSize || 22),
-    genre: song.genre || "",
-    mood: song.mood || "",
-    energy: clamp(Number(song.energy || 5), 1, 10),
-    feel: song.feel || guessFeel(song.tags || []),
+    genre,
+    mood,
+    energy: clamp(Number(song.energy || energyFromMood(mood)), 1, 10),
+    feel: song.feel || feelFromMood(mood) || guessFeel(tags),
     minutes: Math.max(1, Number(song.minutes || 4)),
-    tags: Array.isArray(song.tags) ? song.tags : tagsFromText(song.tags || ""),
-    lyrics: song.lyrics || "",
+    tags: tags.length ? tags : tagsForSong(genre, mood),
   };
 }
 
@@ -285,9 +247,9 @@ function feelFromMood(mood) {
 }
 
 function tagsForSong(genre, mood) {
-  const tags = [genre.toLowerCase(), mood.toLowerCase()];
+  const tags = [genre.toLowerCase(), mood.toLowerCase()].filter(Boolean);
   if (["Driving", "Gritty", "Upbeat", "Tense"].includes(mood)) tags.push("dance");
-  if (["Nostalgic", "Upbeat", "Warm", "Classic Rock"].includes(mood) || /classic/i.test(genre)) tags.push("singalong");
+  if (["Nostalgic", "Upbeat", "Warm"].includes(mood) || /classic/i.test(genre)) tags.push("singalong");
   if (["Dark", "Lonely", "Emotional", "Romantic", "Spiritual"].includes(mood)) tags.push("chill");
   if (["Story", "Lonely", "Spiritual"].includes(mood)) tags.push("story");
   if (["Driving", "Upbeat", "Warm"].includes(mood)) tags.push("opener");
@@ -319,27 +281,8 @@ function guessFeel(tags) {
   return "anthem";
 }
 
-function normalizeNote(note) {
-  return FLAT_TO_SHARP[note] || note;
-}
-
-function transposeNote(note, steps) {
-  const normalized = normalizeNote(note);
-  const index = NOTES_SHARP.indexOf(normalized);
-  if (index < 0) return note;
-  return NOTES_SHARP[(index + steps + 120) % 12];
-}
-
-function transposeChord(chord, steps) {
-  return chord.replace(/^([A-G](?:#|b)?)(.*)$/u, (_, root, rest) => `${transposeNote(root, steps)}${rest}`);
-}
-
-function displayKey(song) {
-  return transposeNote(song.key, Number(song.transpose || 0));
-}
-
 function escapeHtml(value) {
-  return value
+  return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -347,36 +290,16 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function renderChordLine(line, transpose) {
-  if (/^\[[^\]]+\]$/u.test(line.trim())) {
-    return `<span class="section-label">${escapeHtml(line.replace(/\[|\]/gu, ""))}</span>`;
-  }
-
-  const html = escapeHtml(line).replace(/\[([^\]]+)\]/gu, (_, chord) => {
-    return `<span class="chord">${escapeHtml(transposeChord(chord, transpose))}</span>`;
-  });
-  return `<p class="song-line">${html || "&nbsp;"}</p>`;
-}
-
-function renderChart() {
-  const song = activeSong();
-  if (!song) return;
-
-  document.documentElement.style.setProperty("--chart-font", `${song.fontSize || 22}px`);
-  els.chartTitle.textContent = song.title || "Untitled";
-  els.chartArtist.textContent = song.artist || "";
-  els.chartKeyBadge.textContent = `Key ${displayKey(song)}`;
-  els.chartCapoBadge.textContent = `Capo ${song.capo || 0}`;
-  els.chartBody.innerHTML = song.lyrics
-    .split("\n")
-    .map((line) => renderChordLine(line, Number(song.transpose || 0)))
-    .join("");
+function renderTags(tags = []) {
+  const visible = tags.slice(0, 3);
+  if (!visible.length) return "";
+  return `<span class="song-tags">${visible.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</span>`;
 }
 
 function renderLibrary() {
   const query = state.query.trim().toLowerCase();
   const filtered = state.songs.filter((song) => {
-    const haystack = `${song.title} ${song.artist} ${(song.tags || []).join(" ")}`.toLowerCase();
+    const haystack = `${song.title} ${song.genre} ${song.mood} ${(song.tags || []).join(" ")}`.toLowerCase();
     return haystack.includes(query);
   });
 
@@ -386,19 +309,13 @@ function renderLibrary() {
     row.type = "button";
     row.className = `song-row${song.id === state.activeId ? " active" : ""}`;
     row.innerHTML = `<span><span class="song-title">${escapeHtml(song.title)}</span><span class="song-subtitle">${escapeHtml(
-      song.artist || "No artist"
-    )} · ${escapeHtml(song.key)} · energy ${song.energy}</span>${renderTags(song.tags)}</span>`;
+      song.genre || "No genre"
+    )} · ${escapeHtml(song.mood || "No mood")} · energy ${song.energy}</span>${renderTags(song.tags)}</span>`;
     row.addEventListener("click", () => selectSong(song.id));
     els.songList.appendChild(row);
   });
 
   els.songCount.textContent = `${filtered.length} songs`;
-}
-
-function renderTags(tags = []) {
-  const visible = tags.slice(0, 3);
-  if (!visible.length) return "";
-  return `<span class="song-tags">${visible.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</span>`;
 }
 
 function renderSetlist() {
@@ -409,21 +326,24 @@ function renderSetlist() {
 
     const row = document.createElement("div");
     row.className = `set-row${song.id === state.activeId ? " active" : ""}`;
-    row.innerHTML = `<button class="set-main" type="button"><span><span class="song-title">${index + 1}. ${escapeHtml(song.title)}</span><span class="song-subtitle">${escapeHtml(
-      displayKey(song)
-    )} · capo ${song.capo || 0} · energy ${song.energy}</span></span></button>
-    <span class="set-row-actions">
-      <button class="mini-button" type="button" data-action="up" aria-label="Move up">↑</button>
-      <button class="mini-button" type="button" data-action="down" aria-label="Move down">↓</button>
-      <button class="mini-button" type="button" data-action="remove" aria-label="Remove">×</button>
-    </span>`;
-    row.querySelector(".set-main").addEventListener("click", () => selectSong(song.id));
+    row.innerHTML = `<span class="set-number">${index + 1}</span>
+      <button class="song-row-main" type="button">
+        <span class="song-title">${escapeHtml(song.title)}</span>
+        <span class="song-subtitle">${escapeHtml(song.genre || "No genre")} · ${escapeHtml(song.mood || "No mood")} · ${song.minutes} min</span>
+      </button>
+      <span class="set-row-actions">
+        <button class="mini-button" type="button" data-action="up" aria-label="Move up">↑</button>
+        <button class="mini-button" type="button" data-action="down" aria-label="Move down">↓</button>
+        <button class="mini-button" type="button" data-action="remove" aria-label="Remove">×</button>
+      </span>`;
+    row.querySelector(".song-row-main").addEventListener("click", () => selectSong(song.id));
     row.querySelector('[data-action="up"]').addEventListener("click", () => reorderSetItem(index, index - 1));
     row.querySelector('[data-action="down"]').addEventListener("click", () => reorderSetItem(index, index + 1));
     row.querySelector('[data-action="remove"]').addEventListener("click", () => removeSetItem(index));
     els.setList.appendChild(row);
   });
-  els.setCount.textContent = `${state.setlist.length} songs`;
+
+  els.setCount.textContent = state.setlist.length;
   renderSetArc();
   renderSetMinutes();
 }
@@ -454,16 +374,13 @@ function renderInputs() {
   if (!song) return;
 
   els.titleInput.value = song.title || "";
-  els.artistInput.value = song.artist || "";
-  els.lyricsInput.value = song.lyrics || "";
-  els.keySelect.value = song.key || "C";
-  els.displayKey.value = `plays ${displayKey(song)}`;
-  els.capoInput.value = song.capo || 0;
+  els.genreInput.value = song.genre || "";
+  els.moodInput.value = song.mood || "";
   els.energyInput.value = song.energy || 5;
   els.feelSelect.value = song.feel || "anthem";
+  els.minutesInput.value = song.minutes || 4;
   els.fitInput.value = (song.tags || []).join(", ");
-  els.fontSizeInput.value = song.fontSize || 22;
-  els.transposeValue.value = signed(song.transpose || 0);
+  els.selectedHint.textContent = song.title || "";
   els.venueSelect.value = state.crowd.venue;
   els.singalongInput.value = state.crowd.singalong;
   els.danceInput.value = state.crowd.dance;
@@ -476,39 +393,20 @@ function renderAll() {
   renderLibrary();
   renderSetlist();
   renderInputs();
-  renderChart();
   renderGeneratorNote();
 }
 
 function selectSong(id) {
   state.activeId = id;
-  stopScroll();
   persist();
   renderAll();
-  els.chartPane.scrollTop = 0;
 }
 
-function updateSong(patch, renderMode = "all") {
+function updateSong(patch) {
   const song = activeSong();
   Object.assign(song, patch);
   persist();
-  if (renderMode === "chart") {
-    renderChart();
-    renderSetlist();
-    return;
-  }
-  if (renderMode === "library") {
-    renderLibrary();
-    renderSetlist();
-    renderChart();
-    return;
-  }
   renderAll();
-}
-
-function signed(number) {
-  const value = Number(number);
-  return value > 0 ? `+${value}` : `${value}`;
 }
 
 function showToast(message) {
@@ -518,22 +416,16 @@ function showToast(message) {
 }
 
 function addNewSong() {
-  const song = {
+  const song = normalizeSong({
     id: crypto.randomUUID(),
     title: "New Song",
-    artist: "",
-    key: "C",
-    capo: 0,
-    transpose: 0,
-    fontSize: 22,
-    energy: 5,
-    feel: "anthem",
     genre: "",
     mood: "",
+    energy: 5,
+    feel: "anthem",
     minutes: 4,
     tags: [],
-    lyrics: `[Verse]\n[C]Start typing your [F]song here\n[G]Chords in brackets will [C]transpose`,
-  };
+  });
   state.songs.unshift(song);
   state.activeId = song.id;
   persist();
@@ -543,12 +435,11 @@ function addNewSong() {
 }
 
 function addActiveToSet() {
-  if (!state.setlist.includes(state.activeId)) {
-    state.setlist.push(state.activeId);
-    persist();
-    renderSetlist();
-    showToast("Added to tonight");
-  }
+  if (!state.activeId || state.setlist.includes(state.activeId)) return;
+  state.setlist.push(state.activeId);
+  persist();
+  renderSetlist();
+  showToast("Added to set");
 }
 
 function clearSet() {
@@ -600,16 +491,14 @@ function scoreSongForSlot(song, index, total, chosen) {
   score += (tags.has("singalong") ? crowd.singalong : 0) * 2.4;
   score += (tags.has("dance") ? crowd.dance : 0) * 2.2;
   score += (tags.has("chill") ? crowd.chill : 0) * 2;
-  score += tags.has("request") ? 5 : 0;
 
   if (index === 0 && tags.has("opener")) score += 16;
   if (index === total - 1 && tags.has("closer")) score += 18;
 
-  const venue = crowd.venue;
-  if (venue === "listening" && ["story", "ballad"].includes(song.feel)) score += 10;
-  if (venue === "bar" && (tags.has("singalong") || tags.has("dance"))) score += 10;
-  if (venue === "dance" && tags.has("dance")) score += 14;
-  if (venue === "dinner" && Number(song.energy || 5) <= 5) score += 12;
+  if (crowd.venue === "listening" && ["story", "ballad"].includes(song.feel)) score += 10;
+  if (crowd.venue === "bar" && (tags.has("singalong") || tags.has("dance"))) score += 10;
+  if (crowd.venue === "dance" && tags.has("dance")) score += 14;
+  if (crowd.venue === "dinner" && Number(song.energy || 5) <= 5) score += 12;
 
   const recent = chosen.slice(-3).map((id) => state.songs.find((item) => item.id === id)).filter(Boolean);
   recent.forEach((previous) => {
@@ -623,10 +512,9 @@ function scoreSongForSlot(song, index, total, chosen) {
 function generateSetlist() {
   const total = clamp(Number(state.crowd.setLength || 10), 3, Math.min(36, state.songs.length));
   const chosen = [];
-  const pool = state.songs.filter((song) => song.title && song.lyrics !== "");
 
   for (let index = 0; index < total; index += 1) {
-    const candidates = pool
+    const candidates = state.songs
       .filter((song) => !chosen.includes(song.id))
       .map((song) => ({ song, score: scoreSongForSlot(song, index, total, chosen) }))
       .sort((a, b) => b.score - a.score);
@@ -638,7 +526,6 @@ function generateSetlist() {
   state.activeId = chosen[0] || state.activeId;
   persist();
   renderAll();
-  renderGeneratorNote();
   showToast("Setlist generated");
 }
 
@@ -654,92 +541,54 @@ function renderGeneratorNote() {
   els.generatorNote.textContent = `${room}: prioritizing ${strongest}, with opener lift, mid-set breather, and strong closer.`;
 }
 
-function exportData() {
-  const payload = JSON.stringify({ songs: state.songs, setlist: state.setlist, crowd: state.crowd }, null, 2);
-  const blob = new Blob([payload], { type: "application/json" });
+function setlistText() {
+  return state.setlist
+    .map((id, index) => {
+      const song = state.songs.find((item) => item.id === id);
+      if (!song) return "";
+      return `${index + 1}. ${song.title}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function copySetlist() {
+  const text = setlistText();
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Setlist copied");
+  } catch {
+    showToast("Copy failed");
+  }
+}
+
+function exportSetlist() {
+  const text = setlistText();
+  if (!text) return;
+  const blob = new Blob([text], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "setlist-generator-songbook.json";
+  anchor.download = "setlist.txt";
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-function importData(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(reader.result);
-      state.songs = Array.isArray(parsed.songs) ? mergeSongs(parsed.songs, defaultSongs).map(normalizeSong) : state.songs;
-      state.setlist = Array.isArray(parsed.setlist) ? parsed.setlist : [];
-      state.crowd = { ...state.crowd, ...(parsed.crowd || {}) };
-      state.activeId = state.songs[0]?.id || null;
-      persist();
-      renderAll();
-      showToast("Songbook imported");
-    } catch {
-      showToast("Import failed");
-    }
-  };
-  reader.readAsText(file);
-}
-
-function startScroll() {
-  state.scrolling = true;
-  els.autoScrollButton.textContent = "Stop";
-  state.scrollTimer = window.setInterval(() => {
-    const speed = Number(state.scrollSpeed || 0);
-    if (speed > 0) els.chartPane.scrollTop += speed * 0.35;
-  }, 24);
-}
-
-function stopScroll() {
-  state.scrolling = false;
-  els.autoScrollButton.textContent = "Start";
-  window.clearInterval(state.scrollTimer);
-}
-
-function toggleScroll() {
-  if (state.scrolling) {
-    stopScroll();
-  } else {
-    startScroll();
-  }
-}
-
-function moveInSet(direction) {
-  const index = state.setlist.indexOf(state.activeId);
-  if (index < 0) return;
-  const nextId = state.setlist[index + direction];
-  if (nextId) selectSong(nextId);
-}
-
 function bindEvents() {
-  NOTES_SHARP.forEach((note) => {
-    const option = document.createElement("option");
-    option.value = note;
-    option.textContent = note;
-    els.keySelect.appendChild(option);
-  });
-
   els.searchInput.addEventListener("input", (event) => {
     state.query = event.target.value;
     renderLibrary();
   });
 
-  els.titleInput.addEventListener("input", (event) => updateSong({ title: event.target.value }, "library"));
-  els.artistInput.addEventListener("input", (event) => updateSong({ artist: event.target.value }, "library"));
-  els.lyricsInput.addEventListener("input", (event) => updateSong({ lyrics: event.target.value }, "chart"));
-  els.keySelect.addEventListener("change", (event) => updateSong({ key: event.target.value }));
-  els.capoInput.addEventListener("input", (event) => updateSong({ capo: Number(event.target.value) }));
-  els.energyInput.addEventListener("input", (event) => updateSong({ energy: Number(event.target.value) }, "library"));
-  els.feelSelect.addEventListener("change", (event) => updateSong({ feel: event.target.value }, "library"));
-  els.fitInput.addEventListener("input", (event) => updateSong({ tags: tagsFromText(event.target.value) }, "library"));
-  els.fontSizeInput.addEventListener("input", (event) => updateSong({ fontSize: Number(event.target.value) }));
-  els.scrollSpeedInput.addEventListener("input", (event) => {
-    state.scrollSpeed = Number(event.target.value);
-  });
+  els.titleInput.addEventListener("input", (event) => updateSong({ title: event.target.value }));
+  els.genreInput.addEventListener("input", (event) => updateSong({ genre: event.target.value }));
+  els.moodInput.addEventListener("input", (event) => updateSong({ mood: event.target.value }));
+  els.energyInput.addEventListener("input", (event) => updateSong({ energy: Number(event.target.value) }));
+  els.feelSelect.addEventListener("change", (event) => updateSong({ feel: event.target.value }));
+  els.minutesInput.addEventListener("input", (event) => updateSong({ minutes: Number(event.target.value) }));
+  els.fitInput.addEventListener("input", (event) => updateSong({ tags: tagsFromText(event.target.value) }));
+
   els.venueSelect.addEventListener("change", (event) => updateCrowd({ venue: event.target.value }));
   els.singalongInput.addEventListener("input", (event) => updateCrowd({ singalong: Number(event.target.value) }));
   els.danceInput.addEventListener("input", (event) => updateCrowd({ dance: Number(event.target.value) }));
@@ -747,43 +596,12 @@ function bindEvents() {
   els.varietyInput.addEventListener("input", (event) => updateCrowd({ variety: Number(event.target.value) }));
   els.setLengthInput.addEventListener("input", (event) => updateCrowd({ setLength: Number(event.target.value) }));
 
-  els.transposeDown.addEventListener("click", () => updateSong({ transpose: Number(activeSong().transpose || 0) - 1 }));
-  els.transposeUp.addEventListener("click", () => updateSong({ transpose: Number(activeSong().transpose || 0) + 1 }));
-  els.editToggle.addEventListener("click", () => {
-    state.editing = !state.editing;
-    document.body.classList.toggle("read-only", !state.editing);
-    els.editToggle.textContent = state.editing ? "Preview" : "Edit";
-  });
-  els.saveButton.addEventListener("click", () => {
-    persist();
-    showToast("Saved offline");
-  });
-  els.exportButton.addEventListener("click", exportData);
-  els.importInput.addEventListener("change", (event) => importData(event.target.files[0]));
-  els.addToSetButton.addEventListener("click", addActiveToSet);
-  els.clearSetButton.addEventListener("click", clearSet);
   els.generateSetButton.addEventListener("click", generateSetlist);
+  els.addToSetButton.addEventListener("click", addActiveToSet);
+  els.copySetButton.addEventListener("click", copySetlist);
+  els.exportSetButton.addEventListener("click", exportSetlist);
+  els.clearSetButton.addEventListener("click", clearSet);
   els.newSongButton.addEventListener("click", addNewSong);
-  els.autoScrollButton.addEventListener("click", toggleScroll);
-  els.stageModeButton.addEventListener("click", () => {
-    document.body.classList.toggle("stage-mode");
-    els.stageModeButton.textContent = document.body.classList.contains("stage-mode") ? "Exit" : "Stage";
-  });
-
-  window.addEventListener("keydown", (event) => {
-    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
-    if (typing && event.key !== "Escape") return;
-    if (event.key === " ") {
-      event.preventDefault();
-      toggleScroll();
-    }
-    if (event.key === "ArrowRight") moveInSet(1);
-    if (event.key === "ArrowLeft") moveInSet(-1);
-    if (event.key === "Escape") {
-      document.body.classList.remove("stage-mode");
-      stopScroll();
-    }
-  });
 }
 
 load();

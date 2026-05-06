@@ -8,19 +8,14 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Song library">
+      <aside class="sidebar" aria-label="Setlist controls">
         <div class="brand-row">
           <div>
-            <p class="eyebrow">Live songbook</p>
+            <p class="eyebrow">Crowd-shaped</p>
             <h1>Setlist Generator</h1>
           </div>
           <button class="icon-button" id="newSongButton" type="button" title="New song" aria-label="New song">+</button>
         </div>
-
-        <label class="search-box">
-          <span>Search</span>
-          <input id="searchInput" type="search" placeholder="Title, artist, tag..." />
-        </label>
 
         <section class="generator-panel" aria-label="Setlist generator">
           <div class="section-heading">
@@ -68,109 +63,89 @@
           <p class="generator-note" id="generatorNote">Balanced opener, lift, breather, and closer.</p>
         </section>
 
-        <div class="set-tools">
-          <button id="addToSetButton" type="button">Add to set</button>
-          <button id="clearSetButton" type="button">Clear set</button>
-        </div>
-
         <section class="library-section">
           <div class="section-heading">
             <h2>Library</h2>
             <span id="songCount"></span>
           </div>
+          <label class="search-box">
+            <span>Search</span>
+            <input id="searchInput" type="search" placeholder="Title, genre, mood..." />
+          </label>
           <div class="song-list" id="songList"></div>
-        </section>
-
-        <section class="setlist-section">
-          <div class="section-heading">
-            <h2>Tonight</h2>
-            <span id="setCount"></span>
-          </div>
-          <div class="set-arc" id="setArc" aria-label="Set energy arc"></div>
-          <div class="set-list" id="setList"></div>
         </section>
       </aside>
 
-      <main class="stage">
+      <main class="set-output">
         <header class="topbar">
-          <div class="song-meta">
-            <input id="titleInput" class="title-input" aria-label="Song title" />
-            <input id="artistInput" class="artist-input" aria-label="Artist" placeholder="Artist" />
+          <div>
+            <p class="eyebrow">Tonight</p>
+            <h2>Generated Set List</h2>
           </div>
           <div class="top-actions">
-            <button id="editToggle" type="button">Edit</button>
-            <button id="saveButton" type="button">Save</button>
-            <button id="exportButton" type="button">Export</button>
-            <label class="import-button">
-              Import
-              <input id="importInput" type="file" accept="application/json,.json" />
-            </label>
+            <button id="addToSetButton" type="button">Add Selected</button>
+            <button id="copySetButton" type="button">Copy</button>
+            <button id="exportSetButton" type="button">Export .txt</button>
+            <button id="clearSetButton" type="button">Clear</button>
           </div>
         </header>
 
-        <section class="control-band" aria-label="Performance controls">
-          <div class="control-group">
-            <span>Key</span>
-            <select id="keySelect" aria-label="Original key"></select>
-            <output id="displayKey"></output>
+        <section class="set-summary" aria-label="Set summary">
+          <div>
+            <span>Songs</span>
+            <strong id="setCount">0</strong>
           </div>
-          <div class="stepper">
-            <button id="transposeDown" type="button" aria-label="Transpose down">−</button>
-            <output id="transposeValue">0</output>
-            <button id="transposeUp" type="button" aria-label="Transpose up">+</button>
+          <div>
+            <span>Arc</span>
+            <div class="set-arc" id="setArc" aria-label="Set energy arc"></div>
           </div>
-          <div class="control-group">
-            <span>Capo</span>
-            <input id="capoInput" type="number" min="0" max="12" />
-          </div>
-          <div class="control-group">
-            <span>Energy</span>
-            <input id="energyInput" type="range" min="1" max="10" />
-          </div>
-          <div class="control-group">
-            <span>Feel</span>
-            <select id="feelSelect" aria-label="Song feel">
-              <option value="anthem">Anthem</option>
-              <option value="groove">Groove</option>
-              <option value="ballad">Ballad</option>
-              <option value="story">Story</option>
-              <option value="wildcard">Wildcard</option>
-            </select>
-          </div>
-          <div class="control-group wide">
-            <span>Fit</span>
-            <input id="fitInput" aria-label="Song fit tags" placeholder="singalong, dance, closer" />
-          </div>
-          <div class="control-group wide">
-            <span>Font</span>
-            <input id="fontSizeInput" type="range" min="16" max="34" />
-          </div>
-          <div class="control-group wide">
-            <span>Scroll</span>
-            <input id="scrollSpeedInput" type="range" min="0" max="8" />
-          </div>
-          <button id="autoScrollButton" type="button">Start</button>
-          <button id="stageModeButton" type="button">Stage</button>
         </section>
 
-        <section class="workspace">
-          <div class="editor-pane" id="editorPane">
-            <textarea id="lyricsInput" spellcheck="false" aria-label="Lyrics with chords"></textarea>
-            <div class="editor-help">Use chords in brackets like [G]Amazing [D]grace. They transpose automatically.</div>
+        <section class="setlist-section" aria-label="Generated set list">
+          <div class="set-list output-list" id="setList"></div>
+        </section>
+
+        <section class="song-editor" aria-label="Song metadata">
+          <div class="section-heading">
+            <h2>Selected Song</h2>
+            <span id="selectedHint"></span>
           </div>
-          <article class="chart-pane" id="chartPane" aria-live="polite">
-            <div class="chart-header">
-              <div>
-                <p id="chartArtist"></p>
-                <h2 id="chartTitle"></h2>
-              </div>
-              <div class="chart-badges">
-                <span id="chartKeyBadge"></span>
-                <span id="chartCapoBadge"></span>
-              </div>
-            </div>
-            <div class="chart-body" id="chartBody"></div>
-          </article>
+          <div class="editor-grid">
+            <label class="control-group">
+              <span>Song</span>
+              <input id="titleInput" aria-label="Song title" />
+            </label>
+            <label class="control-group">
+              <span>Genre</span>
+              <input id="genreInput" aria-label="Genre" />
+            </label>
+            <label class="control-group">
+              <span>Mood</span>
+              <input id="moodInput" aria-label="Mood" />
+            </label>
+            <label class="control-group">
+              <span>Energy</span>
+              <input id="energyInput" type="range" min="1" max="10" />
+            </label>
+            <label class="control-group">
+              <span>Feel</span>
+              <select id="feelSelect" aria-label="Song feel">
+                <option value="anthem">Anthem</option>
+                <option value="groove">Groove</option>
+                <option value="ballad">Ballad</option>
+                <option value="story">Story</option>
+                <option value="wildcard">Wildcard</option>
+              </select>
+            </label>
+            <label class="control-group">
+              <span>Minutes</span>
+              <input id="minutesInput" type="number" min="1" max="15" />
+            </label>
+            <label class="control-group wide">
+              <span>Fit Tags</span>
+              <input id="fitInput" aria-label="Song fit tags" placeholder="singalong, dance, closer" />
+            </label>
+          </div>
         </section>
       </main>
     </div>
