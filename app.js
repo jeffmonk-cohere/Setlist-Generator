@@ -516,7 +516,7 @@ function generateSetlist() {
   for (let index = 0; index < total; index += 1) {
     const candidates = state.songs
       .filter((song) => !chosen.includes(song.id))
-      .map((song) => ({ song, score: scoreSongForSlot(song, index, total, chosen) }))
+      .map((song) => ({ song, score: scoreSongForSlot(song, index, total, chosen) + Math.random() * 12 }))
       .sort((a, b) => b.score - a.score);
 
     if (candidates[0]) chosen.push(candidates[0].song.id);
