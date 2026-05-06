@@ -510,7 +510,7 @@ function scoreSongForSlot(song, index, total, chosen) {
 }
 
 function generateSetlist() {
-  const total = clamp(Number(state.crowd.setLength || 10), 3, Math.min(36, state.songs.length));
+  const total = clamp(Number(state.crowd.setLength || 10), 3, Math.min(50, state.songs.length));
   const chosen = [];
 
   for (let index = 0; index < total; index += 1) {
